@@ -33,6 +33,7 @@ struct foqosApp: App {
   @StateObject private var startegyManager = StrategyManager.shared
   @StateObject private var liveActivityManager = LiveActivityManager.shared
   @StateObject private var themeManager = ThemeManager.shared
+  @StateObject private var sleepSettings = SleepSettings.shared
 
   init() {
     TimersUtil.registerBackgroundTasks()
@@ -45,6 +46,13 @@ struct foqosApp: App {
       key: "ModelContainer",
       dependency: asyncDependency
     )
+  }
+
+  var isSleeping: Bool {
+    guard let activeProfileId = startegyManager.activeSession?.blockedProfile.id,
+      let sleepProfileID = sleepSettings.sleepProfileId
+    else { return false }
+    return activeProfileId == sleepProfileID
   }
 
   var body: some Scene {
@@ -69,6 +77,8 @@ struct foqosApp: App {
         .environmentObject(ratingManager)
         .environmentObject(liveActivityManager)
         .environmentObject(themeManager)
+        .preferredColorScheme(themeManager.colorScheme)
+        .grayscale(isSleeping ? 1.0 : 0.0)
     }
     .modelContainer(container)
   }

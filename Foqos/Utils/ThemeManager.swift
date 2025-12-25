@@ -44,6 +44,35 @@ class ThemeManager: ObservableObject {
   func setTheme(named name: String) {
     selectedColorName = name
   }
+
+  // MARK: - Dark / Light Mode Support
+
+  enum ThemeMode: String, CaseIterable, Identifiable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    var id: String { rawValue }
+  }
+
+  @AppStorage(
+    "appThemeMode", store: UserDefaults(suiteName: "group.dev.ambitionsoftware.foqos"))
+  var themeMode: ThemeMode = .system {
+    didSet {
+      objectWillChange.send()
+    }
+  }
+
+  var colorScheme: ColorScheme? {
+    switch themeMode {
+    case .system:
+      return nil
+    case .light:
+      return .light
+    case .dark:
+      return .dark
+    }
+  }
 }
 
 extension Color {

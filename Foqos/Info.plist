@@ -8,8 +8,6 @@
 	</array>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>Supported</key>
 	<false/>
 	<key>UIBackgroundModes</key>

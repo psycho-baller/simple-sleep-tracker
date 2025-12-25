@@ -7,7 +7,7 @@ struct NFCResult: Equatable {
   var DateScanned: Date
 }
 
-class NFCScannerUtil: NSObject {
+class NFCScannerUtil: NSObject, ObservableObject {
   // Callback closures for handling results and errors
   var onTagScanned: ((NFCResult) -> Void)?
   var onError: ((String) -> Void)?
@@ -16,6 +16,17 @@ class NFCScannerUtil: NSObject {
   private var urlToWrite: String?
 
   func scan(profileName: String) {
+    #if targetEnvironment(simulator)
+    print("Simulating NFC Scan for: \(profileName)")
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // Use a fixed ID so we can test matching logic (e.g. waking up with same tag)
+        let mockId = "SIMULATED-NFC-TAG-ID"
+        let result = NFCResult(id: mockId, url: nil, DateScanned: Date())
+        self.onTagScanned?(result)
+    }
+    return
+    #endif
+
     guard NFCReaderSession.readingAvailable else {
       self.onError?("NFC scanning not available on this device")
       return
