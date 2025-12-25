@@ -132,11 +132,10 @@ struct SleepDashboardView: View {
                                 optimalWakeTime: sleepSettings.optimalWakeTime
                             )
                             .onAppear {
-                                #if DEBUG
-                                if chartData.isEmpty {
-                                    // chartData = SleepDataUtils.generateMockData()
-                                }
-                                #endif
+                                updateChartData()
+                            }
+                            .onChange(of: sessions) { _ in
+                                updateChartData()
                             }
 
                         } else {
@@ -244,6 +243,19 @@ struct SleepDashboardView: View {
                 }
             }
         }
+    }
+
+    private func updateChartData() {
+        guard let profileId = sleepSettings.sleepProfileId else {
+            chartData = []
+            return
+        }
+
+        // Filter sessions for the correct profile
+        let profileSessions = sessions.filter { $0.blockedProfile.id == profileId }
+
+        // Process into DailySleepData
+        chartData = SleepDataUtils.process(sessions: profileSessions)
     }
 }
 

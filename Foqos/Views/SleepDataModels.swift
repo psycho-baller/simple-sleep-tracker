@@ -51,6 +51,56 @@ struct SleepDataUtils {
         return data
     }
 
+    // MARK: - Data Processing
+    static func process(sessions: [BlockedProfileSession]) -> [DailySleepData] {
+        var data: [DailySleepData] = []
+        let calendar = Calendar.current
+
+        // Filter valid sessions (must have end time) and sort by date
+        let validSessions = sessions.filter { $0.endTime != nil }.sorted { $0.startTime < $1.startTime }
+
+        // We only want the last 7 days of data for the chart
+        // Or essentially, map each session to a DailySleepData
+        // IMPORTANT: We assume 1 main sleep session per day for this chart interpretation.
+        // If there are multiple, we might need to sum them or pick the longest.
+        // For simplicity, let's map every valid session effectively.
+
+        for session in validSessions {
+            guard let endTime = session.endTime else { continue }
+
+            // Day Label: e.g. "Mon"
+            // Use the wake up day (endTime) or start day? usually wake up day is the "morning" of that day.
+            // Let's use the start date to represent "Night of..." or end date to represent "Morning of..."
+            // Standard is usually "Night of Mon -> Tue" is mapped to Tue or Mon.
+            // Let's use the weekday of the START time for now (e.g. sleep on Mon night).
+            let weekday = calendar.component(.weekday, from: session.startTime)
+            let dayLabel = calendar.shortWeekdaySymbols[weekday - 1]
+
+            // Calculate offsets
+            // We need to convert the real Date hour/minute into the offset system based on baseHour (18.0)
+            guard let startOffset = calculateTimeOffset(for: session.startTime),
+                  let endOffset = calculateTimeOffset(for: endTime) else { continue }
+
+            // Duration
+            let duration = endTime.timeIntervalSince(session.startTime)
+
+            data.append(DailySleepData(
+                dayLabel: dayLabel,
+                date: session.startTime,
+                startOffset: startOffset,
+                endOffset: endOffset,
+                duration: duration
+            ))
+        }
+
+        // Take only the last 7 entries if we have too many
+        if data.count > 7 {
+            return Array(data.suffix(7))
+        }
+
+        return data
+    }
+
     // MARK: - Calculations
     static func calculateYAxisDomain(data: [DailySleepData], optimalSleepTime: Date?, optimalWakeTime: Date?) -> (Double, Double) {
         let startOffsets = data.map { $0.startOffset }
@@ -89,9 +139,9 @@ struct SleepDataUtils {
     }
 
     static func calculateAverageDuration(for data: [DailySleepData]) -> TimeInterval {
-        // Use mock logic or real average
-        // For now, returning fixed mock as per original code
-        return 8 * 3600 + 15 * 60  // 8h 15m
+        guard !data.isEmpty else { return 0 }
+        let totalDuration = data.reduce(0) { $0 + $1.duration }
+        return totalDuration / Double(data.count)
     }
 
     // MARK: - Scoring Logic
