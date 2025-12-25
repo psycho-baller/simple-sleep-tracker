@@ -167,17 +167,17 @@ struct SleepSessionEditorView: View {
     func updateDatesRequestingNewDay(_ newDay: Date) {
         let cal = Calendar.current
 
-        // Extract time from current sleepDate
+        // 1. Capture current duration to preserve it
+        let currentDuration = wakeDate.timeIntervalSince(sleepDate)
+
+        // 2. Update Sleep Date to the new day
         let sleepComps = cal.dateComponents([.hour, .minute], from: sleepDate)
-        // Combine newDay + sleepTime
         if let newSleep = cal.date(bySettingHour: sleepComps.hour!, minute: sleepComps.minute!, second: 0, of: newDay) {
             sleepDate = newSleep
         }
 
-        // Handling Wake Date is tricky. Assuming wake is usually after sleep.
-        // If current wake is next day, keep it next day relative to new day.
-        let duration = wakeDate.timeIntervalSince(sleepDate)
-        wakeDate = sleepDate.addingTimeInterval(duration)
+        // 3. Update Wake Date relative to the NEW sleep date to maintain duration
+        wakeDate = sleepDate.addingTimeInterval(currentDuration)
     }
 
     func save() {
