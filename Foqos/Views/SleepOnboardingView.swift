@@ -23,6 +23,9 @@ struct SleepOnboardingView: View {
     @State private var isScanningSleep = false
     @State private var isScanningWake = false
 
+    // Navigation Direction State
+    @State private var forwardNavigation = true
+
     var theme: AppTheme {
         ThemeManager.shared.currentTheme(for: colorScheme)
     }
@@ -33,57 +36,114 @@ struct SleepOnboardingView: View {
             theme.backgroundGradient
                 .ignoresSafeArea()
 
-            VStack {
-                if step == 1 {
-                    WelcomeStep(onNext: { withAnimation { step += 1 } }, theme: theme)
-                } else if step == 2 {
-                    SleepScheduleStep(
-                        sleepTime: $sleepSettings.optimalSleepTime,
-                        wakeTime: $sleepSettings.optimalWakeTime,
-                        onNext: { withAnimation { step += 1 } },
-                        theme: theme
-                    )
-                } else if step == 3 {
-                    AppBlockingInfoStep(
-                        selection: $selection,
-                        isAuthorized: requestAuthorizer.isAuthorized,
-                        onRequestAuthorization: { requestAuthorizer.requestAuthorization() },
-                        onNext: { withAnimation { step += 1 } },
-                        theme: theme
-                    )
-                } else if step == 4 {
-                    NotificationPermissionStep(
-                        isAuthorized: notificationsAuthorized,
-                        onRequestPermission: requestNotificationPermission,
-                        onNext: { withAnimation { step += 1 } },
-                        theme: theme
-                    )
-                } else if step == 5 {
-                    NFCSetupStep(
-                        scannedSleepTag: scannedSleepTag,
-                        scannedWakeTag: scannedWakeTag,
-                        onScanSleep: {
-                            isScanningSleep = true
-                            nfcScanner.scan(profileName: "Sleep Tag")
-                        },
-                        onScanWake: {
-                            isScanningWake = true
-                            nfcScanner.scan(profileName: "Wake Tag")
-                        },
-                        onUseSameTag: {
-                            scannedWakeTag = scannedSleepTag
-                        },
-                        onFinish: { finishOnboarding(useNFC: true) },
-                        onSkip: { finishOnboarding(useNFC: false) },
-                        theme: theme
-                    )
+            VStack(spacing: 0) {
+                // Header / Nav
+                HStack {
+                    if step > 1 {
+                        Button(action: goBack) {
+                            Image(systemName: "chevron.left")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(theme.textPrimary)
+                                .padding(12)
+                                .background(theme.cardBackground)
+                                .clipShape(Circle())
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                    Spacer()
                 }
+                .padding(.horizontal)
+                .padding(.top, 10) // Minor adjustment for visual balance
+
+                // Content
+                VStack {
+                    if step == 1 {
+                        WelcomeStep(onNext: goNext, theme: theme)
+                            .transition(currentTransition)
+                    } else if step == 2 {
+                        SleepScheduleStep(
+                            sleepTime: $sleepSettings.optimalSleepTime,
+                            wakeTime: $sleepSettings.optimalWakeTime,
+                            onNext: goNext,
+                            theme: theme
+                        )
+                        .transition(currentTransition)
+                    } else if step == 3 {
+                        AppBlockingInfoStep(
+                            selection: $selection,
+                            isAuthorized: requestAuthorizer.isAuthorized,
+                            onRequestAuthorization: { requestAuthorizer.requestAuthorization() },
+                            onNext: goNext,
+                            theme: theme
+                        )
+                        .transition(currentTransition)
+                    } else if step == 4 {
+                        NotificationPermissionStep(
+                            isAuthorized: notificationsAuthorized,
+                            onRequestPermission: requestNotificationPermission,
+                            onNext: goNext,
+                            theme: theme
+                        )
+                        .transition(currentTransition)
+                    } else if step == 5 {
+                        NFCSetupStep(
+                            scannedSleepTag: scannedSleepTag,
+                            scannedWakeTag: scannedWakeTag,
+                            onScanSleep: {
+                                isScanningSleep = true
+                                nfcScanner.scan(profileName: "Sleep Tag")
+                            },
+                            onScanWake: {
+                                isScanningWake = true
+                                nfcScanner.scan(profileName: "Wake Tag")
+                            },
+                            onUseSameTag: {
+                                scannedWakeTag = scannedSleepTag
+                            },
+                            onFinish: { finishOnboarding(useNFC: true) },
+                            onSkip: { finishOnboarding(useNFC: false) },
+                            theme: theme
+                        )
+                        .transition(currentTransition)
+                    }
+                }
+                .padding()
             }
-            .padding()
         }
         .onAppear {
             setupNFC()
             checkNotificationStatus()
+        }
+    }
+
+    // Dynamic transition based on navigation direction
+    var currentTransition: AnyTransition {
+        if forwardNavigation {
+            return .asymmetric(
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
+            )
+        } else {
+            return .asymmetric(
+                insertion: .move(edge: .leading),
+                removal: .move(edge: .trailing)
+            )
+        }
+    }
+
+    func goNext() {
+        forwardNavigation = true
+        withAnimation {
+            step += 1
+        }
+    }
+
+    func goBack() {
+        forwardNavigation = false
+        withAnimation {
+            step -= 1
         }
     }
 
@@ -164,7 +224,6 @@ struct WelcomeStep: View {
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(theme.textSecondary)
-                .padding(.horizontal)
 
             Spacer()
 
@@ -208,8 +267,6 @@ struct SleepScheduleStep: View {
                         DatePicker("Bedtime", selection: $sleepTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .datePickerStyle(.compact)
-                            .colorInvert() // Sometimes needed for dark mode contrast on clear backgrounds, or check system behavior
-                            .colorMultiply(theme.textPrimary)
                             .background(theme.cardBackground)
                             .cornerRadius(10)
                     }
@@ -218,13 +275,11 @@ struct SleepScheduleStep: View {
 
                     VStack(alignment: .leading) {
                         Label("Wake Up", systemImage: "sun.max.fill")
-                            .foregroundColor(theme.warning)
+                            .foregroundColor(theme.actionPrimary) // Changed from theme.warning for better contrast
                             .font(.headline)
                         DatePicker("Wake Up", selection: $wakeTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .datePickerStyle(.compact)
-                            .colorInvert()
-                            .colorMultiply(theme.textPrimary)
                             .background(theme.cardBackground)
                             .cornerRadius(10)
                     }
@@ -239,7 +294,7 @@ struct SleepScheduleStep: View {
                 }
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundColor(.white)
+                .foregroundColor(theme.textPrimary)
                 .padding(.vertical, 8)
                 .padding(.horizontal, 16)
                 .background(
@@ -455,7 +510,6 @@ struct NotificationPermissionStep: View {
             .padding(.horizontal)
             .padding(.bottom, 20)
         }
-        // Removing specific overrides to respect the global theme
     }
 
     private func featureRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
