@@ -4,6 +4,11 @@ import SwiftUI
 struct ProfileInsightsView: View {
   @StateObject private var viewModel: ProfileInsightsUtil
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.colorScheme) var colorScheme
+
+  var theme: AppTheme {
+      ThemeManager.shared.currentTheme(for: colorScheme)
+  }
 
   init(profile: BlockedProfiles) {
     _viewModel = StateObject(wrappedValue: ProfileInsightsUtil(profile: profile))
@@ -18,7 +23,7 @@ struct ProfileInsightsView: View {
               "A snapshot of your focus habits, sessions, and breaks. Use these insights to understand patterns and improve productivity."
             )
             .font(.subheadline)
-            .foregroundColor(.secondary)
+            .foregroundColor(theme.textSecondary)
           }
 
           VStack(alignment: .leading, spacing: 8) {
@@ -454,7 +459,8 @@ struct ProfileInsightsView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
       }
-      .background(Color(.systemGroupedBackground).ignoresSafeArea())
+      // Apply correct theme background
+      .background(theme.backgroundGradient.ignoresSafeArea())
       .navigationTitle("Stats for Nerds")
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
@@ -462,6 +468,7 @@ struct ProfileInsightsView: View {
             dismiss()
           } label: {
             Image(systemName: "xmark")
+                .foregroundColor(theme.textPrimary) // Update close button color
           }
           .accessibilityLabel("Close")
         }

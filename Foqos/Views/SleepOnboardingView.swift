@@ -8,6 +8,7 @@ struct SleepOnboardingView: View {
     @EnvironmentObject var requestAuthorizer: RequestAuthorizer
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
 
     @State private var step = 1
     @State private var selection = FamilyActivitySelection()
@@ -22,50 +23,64 @@ struct SleepOnboardingView: View {
     @State private var isScanningSleep = false
     @State private var isScanningWake = false
 
+    var theme: AppTheme {
+        ThemeManager.shared.currentTheme(for: colorScheme)
+    }
+
     var body: some View {
-        VStack {
-            if step == 1 {
-                WelcomeStep(onNext: { withAnimation { step += 1 } })
-            } else if step == 2 {
-                SleepScheduleStep(
-                    sleepTime: $sleepSettings.optimalSleepTime,
-                    wakeTime: $sleepSettings.optimalWakeTime,
-                    onNext: { withAnimation { step += 1 } }
-                )
-            } else if step == 3 {
-                AppBlockingInfoStep(
-                    selection: $selection,
-                    isAuthorized: requestAuthorizer.isAuthorized,
-                    onRequestAuthorization: { requestAuthorizer.requestAuthorization() },
-                    onNext: { withAnimation { step += 1 } }
-                )
-            } else if step == 4 {
-                NotificationPermissionStep(
-                    isAuthorized: notificationsAuthorized,
-                    onRequestPermission: requestNotificationPermission,
-                    onNext: { withAnimation { step += 1 } }
-                )
-            } else if step == 5 {
-                NFCSetupStep(
-                    scannedSleepTag: scannedSleepTag,
-                    scannedWakeTag: scannedWakeTag,
-                    onScanSleep: {
-                        isScanningSleep = true
-                        nfcScanner.scan(profileName: "Sleep Tag")
-                    },
-                    onScanWake: {
-                        isScanningWake = true
-                        nfcScanner.scan(profileName: "Wake Tag")
-                    },
-                    onUseSameTag: {
-                        scannedWakeTag = scannedSleepTag
-                    },
-                    onFinish: { finishOnboarding(useNFC: true) },
-                    onSkip: { finishOnboarding(useNFC: false) }
-                )
+        ZStack {
+            // Global Background
+            theme.backgroundGradient
+                .ignoresSafeArea()
+
+            VStack {
+                if step == 1 {
+                    WelcomeStep(onNext: { withAnimation { step += 1 } }, theme: theme)
+                } else if step == 2 {
+                    SleepScheduleStep(
+                        sleepTime: $sleepSettings.optimalSleepTime,
+                        wakeTime: $sleepSettings.optimalWakeTime,
+                        onNext: { withAnimation { step += 1 } },
+                        theme: theme
+                    )
+                } else if step == 3 {
+                    AppBlockingInfoStep(
+                        selection: $selection,
+                        isAuthorized: requestAuthorizer.isAuthorized,
+                        onRequestAuthorization: { requestAuthorizer.requestAuthorization() },
+                        onNext: { withAnimation { step += 1 } },
+                        theme: theme
+                    )
+                } else if step == 4 {
+                    NotificationPermissionStep(
+                        isAuthorized: notificationsAuthorized,
+                        onRequestPermission: requestNotificationPermission,
+                        onNext: { withAnimation { step += 1 } },
+                        theme: theme
+                    )
+                } else if step == 5 {
+                    NFCSetupStep(
+                        scannedSleepTag: scannedSleepTag,
+                        scannedWakeTag: scannedWakeTag,
+                        onScanSleep: {
+                            isScanningSleep = true
+                            nfcScanner.scan(profileName: "Sleep Tag")
+                        },
+                        onScanWake: {
+                            isScanningWake = true
+                            nfcScanner.scan(profileName: "Wake Tag")
+                        },
+                        onUseSameTag: {
+                            scannedWakeTag = scannedSleepTag
+                        },
+                        onFinish: { finishOnboarding(useNFC: true) },
+                        onSkip: { finishOnboarding(useNFC: false) },
+                        theme: theme
+                    )
+                }
             }
+            .padding()
         }
-        .padding()
         .onAppear {
             setupNFC()
             checkNotificationStatus()
@@ -98,8 +113,7 @@ struct SleepOnboardingView: View {
             DispatchQueue.main.async {
                 notificationsAuthorized = granted
                 if granted {
-                    // Automatically move to next step if granted? Or let user click Next.
-                    // Let's just update state so UI reflects it.
+                    // Update state so UI reflects it.
                 }
             }
         }
@@ -131,23 +145,25 @@ struct SleepOnboardingView: View {
 // MARK: - Step 1: Welcome
 struct WelcomeStep: View {
     var onNext: () -> Void
+    var theme: AppTheme
 
     var body: some View {
         VStack(spacing: 30) {
             Spacer()
             Image(systemName: "moon.stars.fill")
                 .font(.system(size: 80))
-                .foregroundColor(.indigo)
+                .foregroundColor(theme.accent)
 
             Text("Welcome to Foqos Sleep")
                 .font(.largeTitle)
                 .bold()
                 .multilineTextAlignment(.center)
+                .foregroundColor(theme.textPrimary)
 
             Text("Regain control of your rest. Foqos helps you disconnect from distractions and build healthy sleep habits.")
                 .font(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.textSecondary)
                 .padding(.horizontal)
 
             Spacer()
@@ -156,7 +172,7 @@ struct WelcomeStep: View {
                 Text("Get Started")
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.indigo)
+                    .background(theme.actionPrimary)
                     .foregroundColor(.white)
                     .cornerRadius(15)
             }
@@ -169,28 +185,32 @@ struct SleepScheduleStep: View {
     @Binding var sleepTime: Date
     @Binding var wakeTime: Date
     var onNext: () -> Void
+    var theme: AppTheme
 
     var body: some View {
         VStack(spacing: 30) {
             Text("Your Sleep Schedule")
                 .font(.title)
                 .bold()
+                .foregroundColor(theme.textPrimary)
 
             Text("Set your ideal sleep and wake times. You can always change this later in settings.")
                 .font(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.textSecondary)
 
             VStack(spacing: 20) {
                 HStack {
                     VStack(alignment: .leading) {
                         Label("Bedtime", systemImage: "moon.fill")
-                            .foregroundColor(.indigo)
+                            .foregroundColor(theme.actionPrimary)
                             .font(.headline)
                         DatePicker("Bedtime", selection: $sleepTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .datePickerStyle(.compact)
-                            .background(Color(UIColor.secondarySystemBackground))
+                            .colorInvert() // Sometimes needed for dark mode contrast on clear backgrounds, or check system behavior
+                            .colorMultiply(theme.textPrimary)
+                            .background(theme.cardBackground)
                             .cornerRadius(10)
                     }
 
@@ -198,12 +218,14 @@ struct SleepScheduleStep: View {
 
                     VStack(alignment: .leading) {
                         Label("Wake Up", systemImage: "sun.max.fill")
-                            .foregroundColor(.orange)
+                            .foregroundColor(theme.warning)
                             .font(.headline)
                         DatePicker("Wake Up", selection: $wakeTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .datePickerStyle(.compact)
-                            .background(Color(UIColor.secondarySystemBackground))
+                            .colorInvert()
+                            .colorMultiply(theme.textPrimary)
+                            .background(theme.cardBackground)
                             .cornerRadius(10)
                     }
                 }
@@ -222,7 +244,7 @@ struct SleepScheduleStep: View {
                 .padding(.horizontal, 16)
                 .background(
                     Capsule()
-                        .fill(Color(white: 0.15))
+                        .fill(theme.cardBackground)
                 )
             }
             .padding()
@@ -236,7 +258,7 @@ struct SleepScheduleStep: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue)
+                .background(theme.actionPrimary)
                 .foregroundColor(.white)
                 .cornerRadius(15)
             }
@@ -263,6 +285,7 @@ struct AppBlockingInfoStep: View {
     var isAuthorized: Bool
     var onRequestAuthorization: () -> Void
     var onNext: () -> Void
+    var theme: AppTheme
 
     // Internal state to track if we should show the picker
     @State private var showPicker = false
@@ -272,11 +295,12 @@ struct AppBlockingInfoStep: View {
             Text("Block Distractions")
                 .font(.title)
                 .bold()
+                .foregroundColor(theme.textPrimary)
 
             Text("Select apps that keep you awake. We'll block them during your sleep schedule.")
                 .font(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.textSecondary)
 
             VStack(spacing: 15) {
                 if !isAuthorized {
@@ -287,7 +311,7 @@ struct AppBlockingInfoStep: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.orange)
+                        .background(theme.warning)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                     }
@@ -300,8 +324,8 @@ struct AppBlockingInfoStep: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.gray.opacity(0.15))
-                    .foregroundColor(.primary)
+                    .background(theme.cardBackground)
+                    .foregroundColor(theme.textPrimary)
                     .cornerRadius(10)
                 }
                 .familyActivityPicker(isPresented: $showPicker, selection: $selection)
@@ -313,7 +337,7 @@ struct AppBlockingInfoStep: View {
                 Text(selection.categoryTokens.isEmpty && selection.applicationTokens.isEmpty && selection.webDomainTokens.isEmpty ? "Skip" : "Next")
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(theme.actionPrimary)
                     .foregroundColor(.white)
                     .cornerRadius(15)
             }
@@ -326,158 +350,140 @@ struct NotificationPermissionStep: View {
     var isAuthorized: Bool
     var onRequestPermission: () -> Void
     var onNext: () -> Void
-
-    // Dark theme colors
-    private let bgGradient = LinearGradient(
-        colors: [Color(red: 0.05, green: 0.07, blue: 0.15), Color(red: 0.1, green: 0.11, blue: 0.2)],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-    private let cardBg = Color(red: 0.15, green: 0.16, blue: 0.24)
-    private let buttonBlue = Color(red: 0.15, green: 0.35, blue: 0.95)
+    var theme: AppTheme
 
     var body: some View {
-        ZStack {
-            // Background
-            bgGradient
-                .ignoresSafeArea()
+        VStack(spacing: 24) {
+            Spacer().frame(height: 20)
 
-            VStack(spacing: 24) {
-                Spacer().frame(height: 20)
-
-                // Notification Preview Card
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "moon.fill")
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color.blue)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                        Text("SLEEP TRACKER")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.gray)
-
-                        Spacer()
-
-                        Text("Now")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-
-                    Text("Time to wind down 🌙")
-                        .font(.headline)
+            // Notification Preview Card
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "moon.fill")
                         .foregroundColor(.white)
+                        .padding(6)
+                        .background(theme.actionPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
 
-                    Text("Your 8-hour sleep goal is within reach. Start your routine now to wake up refreshed.")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text("SLEEP TRACKER")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(theme.textSecondary)
+
+                    Spacer()
+
+                    Text("Now")
+                        .font(.caption)
+                        .foregroundColor(theme.textSecondary)
                 }
-                .padding()
-                .background(cardBg.opacity(0.6))
-                .cornerRadius(20)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
-                .padding(.horizontal)
 
-                VStack(spacing: 8) {
-                    Text("Don't miss your sleep window")
-                        .font(.title2)
-                        .bold()
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
+                Text("Time to wind down 🌙")
+                    .font(.headline)
+                    .foregroundColor(theme.textPrimary)
 
-                    Text("Consistency is key to better rest. Enable notifications so we can gently remind you when it's time to rest.")
-                        .font(.body)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding(.top, 10)
-
-                // Feature List
-                VStack(spacing: 12) {
-                    featureRow(icon: "bell.fill", color: .indigo, title: "Bedtime nudges", subtitle: "Gentle reminders to start your routine.")
-                    featureRow(icon: "alarm.fill", color: .indigo, title: "Smart wake-up", subtitle: "Alarms that wake you at the lightest stage.")
-                    featureRow(icon: "chart.bar.fill", color: .indigo, title: "Weekly insights", subtitle: "Summaries of your sleep debt and quality.")
-                }
-                .padding(.horizontal)
-
-                Spacer()
-
-                // Actions
-                VStack(spacing: 16) {
-                    Button(action: {
-                        if isAuthorized {
-                            onNext()
-                        } else {
-                            onRequestPermission()
-                        }
-                    }) {
-                        HStack {
-                            if isAuthorized {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Notifications Enabled")
-                            } else {
-                                Text("Turn on Notifications")
-                            }
-                        }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isAuthorized ? Color.green : buttonBlue)
-                        .foregroundColor(.white)
-                        .cornerRadius(30)
-                    }
-
-                    if !isAuthorized {
-                        Button("Maybe later") {
-                            onNext()
-                        }
-                        .foregroundColor(.gray)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
+                Text("Your 8-hour sleep goal is within reach. Start your routine now to wake up refreshed.")
+                    .font(.subheadline)
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding()
+            .background(theme.cardBackground)
+            .cornerRadius(20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            .padding(.horizontal)
+
+            VStack(spacing: 8) {
+                Text("Don't miss your sleep window")
+                    .font(.title2)
+                    .bold()
+                    .foregroundColor(theme.textPrimary)
+                    .multilineTextAlignment(.center)
+
+                Text("Consistency is key to better rest. Enable notifications so we can gently remind you when it's time to rest.")
+                    .font(.body)
+                    .foregroundColor(theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .padding(.top, 10)
+
+            // Feature List
+            VStack(spacing: 12) {
+                featureRow(icon: "bell.fill", color: theme.actionPrimary, title: "Bedtime nudges", subtitle: "Gentle reminders to start your routine.")
+                featureRow(icon: "alarm.fill", color: theme.actionPrimary, title: "Smart wake-up", subtitle: "Alarms that wake you at the lightest stage.")
+                featureRow(icon: "chart.bar.fill", color: theme.actionPrimary, title: "Weekly insights", subtitle: "Summaries of your sleep debt and quality.")
+            }
+            .padding(.horizontal)
+
+            Spacer()
+
+            // Actions
+            VStack(spacing: 16) {
+                Button(action: {
+                    if isAuthorized {
+                        onNext()
+                    } else {
+                        onRequestPermission()
+                    }
+                }) {
+                    HStack {
+                        if isAuthorized {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Notifications Enabled")
+                        } else {
+                            Text("Turn on Notifications")
+                        }
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(isAuthorized ? theme.success : theme.actionPrimary)
+                    .foregroundColor(.white)
+                    .cornerRadius(30)
+                }
+
+                if !isAuthorized {
+                    Button("Maybe later") {
+                        onNext()
+                    }
+                    .foregroundColor(theme.textSecondary)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 20)
         }
-        // Force dark mode for this view to ensure text contrast
-        .preferredColorScheme(.dark)
-        // Attempt to break out of parent padding if possible, though 'padding()' in parent is restrictive.
-        // We add negative padding to compensate for the parent's default padding if we assume standard 16pt.
-        .padding(-16)
+        // Removing specific overrides to respect the global theme
     }
 
     private func featureRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color(red: 0.2, green: 0.2, blue: 0.35))
+                    .fill(theme.cardBackground)
                     .frame(width: 44, height: 44)
 
                 Image(systemName: icon)
-                    .foregroundColor(Color.blue.opacity(0.8))
+                    .foregroundColor(color)
                     .font(.system(size: 20))
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.textPrimary)
 
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.textSecondary)
             }
 
             Spacer()
         }
         .padding()
-        .background(cardBg.opacity(0.4))
+        .background(theme.cardBackground.opacity(0.5))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -495,17 +501,19 @@ struct NFCSetupStep: View {
     var onUseSameTag: () -> Void
     var onFinish: () -> Void
     var onSkip: () -> Void
+    var theme: AppTheme
 
     var body: some View {
         VStack(spacing: 25) {
             Text("Setup NFC Tags")
                 .font(.title)
                 .bold()
+                .foregroundColor(theme.textPrimary)
 
             Text("Control your sleep mode instantly with NFC tags. Scan one tag to sleep, and another to wake up. Or skip to use manual controls.")
                 .font(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.textSecondary)
 
             VStack(spacing: 15) {
                 // Sleep Tag Button
@@ -520,7 +528,7 @@ struct NFCSetupStep: View {
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(scannedSleepTag != nil ? Color.green : Color.indigo)
+                    .background(scannedSleepTag != nil ? theme.success : theme.actionPrimary)
                     .foregroundColor(.white)
                     .cornerRadius(10)
                 }
@@ -538,7 +546,7 @@ struct NFCSetupStep: View {
                         }
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(scannedWakeTag != nil ? Color.green : Color.orange)
+                        .background(scannedWakeTag != nil ? theme.success : theme.warning)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                     }
@@ -547,7 +555,7 @@ struct NFCSetupStep: View {
                         onUseSameTag()
                     }
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(theme.textSecondary)
                     .disabled(scannedWakeTag != nil)
                 }
             }
@@ -560,7 +568,7 @@ struct NFCSetupStep: View {
                     Text("Finish Setup")
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.green)
+                        .background(theme.success)
                         .foregroundColor(.white)
                         .cornerRadius(15)
                 }
@@ -568,7 +576,7 @@ struct NFCSetupStep: View {
                 Button(action: onSkip) {
                     Text("Skip & Use Manual Controls")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.textSecondary)
                 }
                 .padding(.bottom)
             }

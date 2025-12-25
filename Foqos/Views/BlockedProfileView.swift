@@ -21,7 +21,12 @@ struct BlockedProfileView: View {
   @EnvironmentObject private var themeManager: ThemeManager
   @EnvironmentObject private var nfcWriter: NFCWriter
   @EnvironmentObject private var strategyManager: StrategyManager
+  @Environment(\.colorScheme) var colorScheme
   @ObservedObject var sleepSettings = SleepSettings.shared
+
+  var theme: AppTheme {
+      ThemeManager.shared.currentTheme(for: colorScheme)
+  }
 
   func calculateDuration(start: Date, end: Date) -> String {
       let calendar = Calendar.current
@@ -252,8 +257,8 @@ struct BlockedProfileView: View {
               ForEach(ThemeManager.availableColors, id: \.name) { colorOption in
                 HStack {
                   Circle()
-                    .fill(colorOption.color)
-                    .frame(width: 20, height: 20)
+                  .fill(colorOption.color)
+                  .frame(width: 20, height: 20)
                   Text(colorOption.name)
                 }
                 .tag(colorOption.name)
@@ -473,6 +478,8 @@ struct BlockedProfileView: View {
              .foregroundColor(.red)
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(theme.backgroundGradient)
       .onChange(of: enableAllowMode) {
         _,
         newValue in
