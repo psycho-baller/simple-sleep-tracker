@@ -13,6 +13,7 @@ struct SleepDashboardView: View {
 
     @State private var viewMode: ViewMode = .week
     @State private var showingSettings = false
+    @State private var showingLogs = false
     @State private var chartData: [DailySleepData] = []
 
     enum ViewMode: String, CaseIterable, Identifiable {
@@ -57,6 +58,13 @@ struct SleepDashboardView: View {
                                 .foregroundColor(.gray)
                         }
                         Spacer()
+
+                        Button(action: { showingLogs = true }) {
+                                Image(systemName: "list.bullet.clipboard")
+                                    .font(.title2)
+                                    .foregroundColor(.primary)
+                        }
+                        .padding(.trailing, 8)
 
                         Button(action: { showingSettings = true }) {
                             Image(systemName: "gear")
@@ -228,6 +236,11 @@ struct SleepDashboardView: View {
                     BlockedProfileView(profile: profile)
                 } else {
                     Text("Error: No Sleep Profile Found")
+                }
+            }
+            .sheet(isPresented: $showingLogs) {
+                if let profile = sleepProfile {
+                    SleepLogsView(profile: profile)
                 }
             }
         }

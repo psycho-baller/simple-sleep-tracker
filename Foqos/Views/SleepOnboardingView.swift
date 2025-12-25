@@ -327,51 +327,162 @@ struct NotificationPermissionStep: View {
     var onRequestPermission: () -> Void
     var onNext: () -> Void
 
+    // Dark theme colors
+    private let bgGradient = LinearGradient(
+        colors: [Color(red: 0.05, green: 0.07, blue: 0.15), Color(red: 0.1, green: 0.11, blue: 0.2)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    private let cardBg = Color(red: 0.15, green: 0.16, blue: 0.24)
+    private let buttonBlue = Color(red: 0.15, green: 0.35, blue: 0.95)
+
     var body: some View {
-        VStack(spacing: 30) {
-            Text("Stay on Track")
-                .font(.title)
-                .bold()
+        ZStack {
+            // Background
+            bgGradient
+                .ignoresSafeArea()
 
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.pink)
+            VStack(spacing: 24) {
+                Spacer().frame(height: 20)
 
-            Text("Enable notifications to get reminders when it's time to sleep.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                // Notification Preview Card
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Color.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
 
-            if !isAuthorized {
-                Button(action: onRequestPermission) {
-                    Text("Allow Notifications")
+                        Text("SLEEP TRACKER")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.gray)
+
+                        Spacer()
+
+                        Text("Now")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+
+                    Text("Time to wind down 🌙")
                         .font(.headline)
-                        .padding()
-                        .background(Color.pink)
                         .foregroundColor(.white)
-                        .cornerRadius(10)
+
+                    Text("Your 8-hour sleep goal is within reach. Start your routine now to wake up refreshed.")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } else {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Notifications Enabled!")
+                .padding()
+                .background(cardBg.opacity(0.6))
+                .cornerRadius(20)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .padding(.horizontal)
+
+                VStack(spacing: 8) {
+                    Text("Don't miss your sleep window")
+                        .font(.title2)
+                        .bold()
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Consistency is key to better rest. Enable notifications so we can gently remind you when it's time to rest.")
+                        .font(.body)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.top, 10)
+
+                // Feature List
+                VStack(spacing: 12) {
+                    featureRow(icon: "bell.fill", color: .indigo, title: "Bedtime nudges", subtitle: "Gentle reminders to start your routine.")
+                    featureRow(icon: "alarm.fill", color: .indigo, title: "Smart wake-up", subtitle: "Alarms that wake you at the lightest stage.")
+                    featureRow(icon: "chart.bar.fill", color: .indigo, title: "Weekly insights", subtitle: "Summaries of your sleep debt and quality.")
+                }
+                .padding(.horizontal)
+
+                Spacer()
+
+                // Actions
+                VStack(spacing: 16) {
+                    Button(action: {
+                        if isAuthorized {
+                            onNext()
+                        } else {
+                            onRequestPermission()
+                        }
+                    }) {
+                        HStack {
+                            if isAuthorized {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Notifications Enabled")
+                            } else {
+                                Text("Turn on Notifications")
+                            }
+                        }
                         .font(.headline)
-                        .foregroundColor(.green)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(isAuthorized ? Color.green : buttonBlue)
+                        .foregroundColor(.white)
+                        .cornerRadius(30)
+                    }
+
+                    if !isAuthorized {
+                        Button("Maybe later") {
+                            onNext()
+                        }
+                        .foregroundColor(.gray)
+                    }
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+        }
+        // Force dark mode for this view to ensure text contrast
+        .preferredColorScheme(.dark)
+        // Attempt to break out of parent padding if possible, though 'padding()' in parent is restrictive.
+        // We add negative padding to compensate for the parent's default padding if we assume standard 16pt.
+        .padding(-16)
+    }
+
+    private func featureRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.2, green: 0.2, blue: 0.35))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: icon)
+                    .foregroundColor(Color.blue.opacity(0.8))
+                    .font(.system(size: 20))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
 
             Spacer()
-
-            Button(action: onNext) {
-                Text("Next")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(15)
-            }
         }
+        .padding()
+        .background(cardBg.opacity(0.4))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
 }
 
