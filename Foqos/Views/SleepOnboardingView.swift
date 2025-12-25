@@ -209,17 +209,7 @@ struct SleepScheduleStep: View {
                 }
                 .padding(.horizontal)
 
-                // Duration Calculation
-                let calendar = Calendar.current
-                let startComponents = calendar.dateComponents([.hour, .minute], from: sleepTime)
-                let endComponents = calendar.dateComponents([.hour, .minute], from: wakeTime)
-                let startMinutes = (startComponents.hour ?? 0) * 60 + (startComponents.minute ?? 0)
-                let endMinutes = (endComponents.hour ?? 0) * 60 + (endComponents.minute ?? 0)
-                var diffMinutes = endMinutes - startMinutes
-                if diffMinutes < 0 { diffMinutes += 24 * 60 }
-                let hours = diffMinutes / 60
-                let minutes = diffMinutes % 60
-                let durationString = minutes == 0 ? "\(hours) hr" : "\(hours) hr \(minutes) min"
+                let durationString = durationString(from: sleepTime, to: wakeTime)
 
                 HStack {
                      Image(systemName: "clock")
@@ -251,6 +241,19 @@ struct SleepScheduleStep: View {
                 .cornerRadius(15)
             }
         }
+    }
+
+    private func durationString(from start: Date, to end: Date) -> String {
+        let calendar = Calendar.current
+        let startComponents = calendar.dateComponents([.hour, .minute], from: start)
+        let endComponents = calendar.dateComponents([.hour, .minute], from: end)
+        let startMinutes = (startComponents.hour ?? 0) * 60 + (startComponents.minute ?? 0)
+        let endMinutes = (endComponents.hour ?? 0) * 60 + (endComponents.minute ?? 0)
+        var diffMinutes = endMinutes - startMinutes
+        if diffMinutes < 0 { diffMinutes += 24 * 60 }
+        let hours = diffMinutes / 60
+        let minutes = diffMinutes % 60
+        return minutes == 0 ? "\(hours) hr" : "\(hours) hr \(minutes) min"
     }
 }
 

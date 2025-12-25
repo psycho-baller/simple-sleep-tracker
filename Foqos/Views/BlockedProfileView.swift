@@ -461,6 +461,16 @@ struct BlockedProfileView: View {
                  dismiss()
              }
              .foregroundColor(.red)
+
+             Button("Reset Sleep Data") {
+                 if let sessions = profile?.sessions {
+                     for session in sessions {
+                         modelContext.delete(session)
+                     }
+                     try? modelContext.save()
+                 }
+             }
+             .foregroundColor(.red)
         }
       }
       .onChange(of: enableAllowMode) {
