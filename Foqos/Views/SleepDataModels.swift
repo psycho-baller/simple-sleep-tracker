@@ -53,49 +53,54 @@ struct SleepDataUtils {
 
     // MARK: - Data Processing
     static func process(sessions: [BlockedProfileSession]) -> [DailySleepData] {
+        // Filter valid sessions
+        let validSessions = sessions.filter { $0.endTime != nil }.sorted { $0.startTime < $1.startTime }
+        guard let lastSession = validSessions.last else { return [] }
+
         var data: [DailySleepData] = []
         let calendar = Calendar.current
 
-        // Filter valid sessions (must have end time) and sort by date
-        let validSessions = sessions.filter { $0.endTime != nil }.sorted { $0.startTime < $1.startTime }
+        // Define the 7-day window ending on the last session's date
+        // "Night of" -> we prioritize the start time's day.
+        let anchorDate = calendar.startOfDay(for: lastSession.startTime)
 
-        // We only want the last 7 days of data for the chart
-        // Or essentially, map each session to a DailySleepData
-        // IMPORTANT: We assume 1 main sleep session per day for this chart interpretation.
-        // If there are multiple, we might need to sum them or pick the longest.
-        // For simplicity, let's map every valid session effectively.
+        // Generate last 7 days (k=6 down to 0)
+        for i in (0..<7).reversed() {
+            guard let targetDate = calendar.date(byAdding: .day, value: -i, to: anchorDate) else { continue }
 
-        for session in validSessions {
-            guard let endTime = session.endTime else { continue }
+            // Find existing session for this day (matching start day)
+            // We take the FIRST matching session found for that day.
+            // (Assuming one sleep per day, or we prioritize the first one started that night)
+            if let session = validSessions.first(where: { calendar.isDate($0.startTime, inSameDayAs: targetDate) }),
+               let end = session.endTime,
+               let startOffset = calculateTimeOffset(for: session.startTime),
+               let endOffset = calculateTimeOffset(for: end) {
 
-            // Day Label: e.g. "Mon"
-            // Use the wake up day (endTime) or start day? usually wake up day is the "morning" of that day.
-            // Let's use the start date to represent "Night of..." or end date to represent "Morning of..."
-            // Standard is usually "Night of Mon -> Tue" is mapped to Tue or Mon.
-            // Let's use the weekday of the START time for now (e.g. sleep on Mon night).
-            let weekday = calendar.component(.weekday, from: session.startTime)
-            let dayLabel = calendar.shortWeekdaySymbols[weekday - 1]
+                let duration = end.timeIntervalSince(session.startTime)
+                let weekday = calendar.component(.weekday, from: session.startTime)
+                let dayLabel = calendar.shortWeekdaySymbols[weekday - 1]
 
-            // Calculate offsets
-            // We need to convert the real Date hour/minute into the offset system based on baseHour (18.0)
-            guard let startOffset = calculateTimeOffset(for: session.startTime),
-                  let endOffset = calculateTimeOffset(for: endTime) else { continue }
+                data.append(DailySleepData(
+                    dayLabel: dayLabel,
+                    date: session.startTime,
+                    startOffset: startOffset,
+                    endOffset: endOffset,
+                    duration: duration
+                ))
+            } else {
+                // Formatting date for label if no session
+                let weekday = calendar.component(.weekday, from: targetDate)
+                let dayLabel = calendar.shortWeekdaySymbols[weekday - 1]
 
-            // Duration
-            let duration = endTime.timeIntervalSince(session.startTime)
-
-            data.append(DailySleepData(
-                dayLabel: dayLabel,
-                date: session.startTime,
-                startOffset: startOffset,
-                endOffset: endOffset,
-                duration: duration
-            ))
-        }
-
-        // Take only the last 7 entries if we have too many
-        if data.count > 7 {
-            return Array(data.suffix(7))
+                // Empty Data Point
+                data.append(DailySleepData(
+                    dayLabel: dayLabel,
+                    date: targetDate,
+                    startOffset: 0, // 0 implies 18:00 base, but with 0 duration it shouldn't matter if we filter
+                    endOffset: 0,
+                    duration: 0
+                ))
+            }
         }
 
         return data
@@ -103,8 +108,11 @@ struct SleepDataUtils {
 
     // MARK: - Calculations
     static func calculateYAxisDomain(data: [DailySleepData], optimalSleepTime: Date?, optimalWakeTime: Date?) -> (Double, Double) {
-        let startOffsets = data.map { $0.startOffset }
-        let endOffsets = data.map { $0.endOffset }
+        // Filter out empty days (duration == 0) for domain calculation
+        let activeData = data.filter { $0.duration > 0 }
+
+        let startOffsets = activeData.map { $0.startOffset }
+        let endOffsets = activeData.map { $0.endOffset }
 
         // Also consider optimal times
         var allValues = startOffsets + endOffsets
@@ -113,6 +121,11 @@ struct SleepDataUtils {
         }
         if let optimalWake = calculateTimeOffset(for: optimalWakeTime) {
             allValues.append(optimalWake)
+        }
+
+        // Default to standard range if absolutely no data (e.g. 0-12 hours relative)
+        if allValues.isEmpty {
+           return (0, 12)
         }
 
         let minVal = allValues.min() ?? 0
@@ -139,9 +152,12 @@ struct SleepDataUtils {
     }
 
     static func calculateAverageDuration(for data: [DailySleepData]) -> TimeInterval {
-        guard !data.isEmpty else { return 0 }
-        let totalDuration = data.reduce(0) { $0 + $1.duration }
-        return totalDuration / Double(data.count)
+        // Filter out empty days
+        let activeData = data.filter { $0.duration > 0 }
+
+        guard !activeData.isEmpty else { return 0 }
+        let totalDuration = activeData.reduce(0) { $0 + $1.duration }
+        return totalDuration / Double(activeData.count)
     }
 
     // MARK: - Scoring Logic
@@ -155,11 +171,13 @@ struct SleepDataUtils {
     }
 
     static func calculateSleepConsistency(data: [DailySleepData]) -> Int {
-        return calculateConsistencyFor(values: data.map { $0.startOffset })
+        let activeData = data.filter { $0.duration > 0 }
+        return calculateConsistencyFor(values: activeData.map { $0.startOffset })
     }
 
     static func calculateWakeConsistency(data: [DailySleepData]) -> Int {
-        return calculateConsistencyFor(values: data.map { $0.endOffset })
+        let activeData = data.filter { $0.duration > 0 }
+        return calculateConsistencyFor(values: activeData.map { $0.endOffset })
     }
 
     private static func calculateConsistencyFor(values: [Double]) -> Int {
@@ -174,8 +192,10 @@ struct SleepDataUtils {
     }
 
     static func calculateAccuracy(data: [DailySleepData], optimalSleepTime: Date?, optimalWakeTime: Date?) -> Int {
+        let activeData = data.filter { $0.duration > 0 }
+
         // Accuracy relative to sleepSettings.optimalSleepTime and optimalWakeTime
-        guard !data.isEmpty,
+        guard !activeData.isEmpty,
               let targetSleep = calculateTimeOffset(for: optimalSleepTime),
               let targetWake = calculateTimeOffset(for: optimalWakeTime) else {
             return 0
@@ -183,13 +203,13 @@ struct SleepDataUtils {
 
         var totalDeviation: Double = 0
 
-        for day in data {
+        for day in activeData {
             let startDev = abs(day.startOffset - targetSleep)
             let endDev = abs(day.endOffset - targetWake)
             totalDeviation += (startDev + endDev)
         }
 
-        let avgDeviation = totalDeviation / Double(data.count * 2) // Avg per event (sleep or wake)
+        let avgDeviation = totalDeviation / Double(activeData.count * 2) // Avg per event (sleep or wake)
 
         // Deduction: 1 hour off = 10 points?
         let deduction = Int(avgDeviation * 10)

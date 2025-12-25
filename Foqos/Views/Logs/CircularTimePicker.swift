@@ -1,354 +1,320 @@
 import SwiftUI
 
-struct CircularTimePicker: View {
-    // Dates for start (bedtime) and end (wake up)
-    @Binding var sleepTime: Date
-    @Binding var wakeTime: Date
-    
-    // Config
-    var size: CGFloat = 250
-    var strokeWidth: CGFloat = 40
-    
-    // Internal state for gesture handling
-    @State private var sleepAngle: Double = 0.0
-    @State private var wakeAngle: Double = 0.0
-    
-    var body: some View {
-        ZStack {
-            // 1. Background Circle (Track)
-            Circle()
-                .stroke(Color.gray.opacity(0.2), lineWidth: strokeWidth)
-                .frame(width: size, height: size)
-            
-            // 2. Active Arc (Sleep Duration)
-            // We use a custom shape or trim based on angles
-            Circle()
-                .trim(from: startFraction, to: endFraction)
-                .stroke(
-                    AngularGradient(
-                        gradient: Gradient(colors: [.indigo, .purple, .orange]),
-                        center: .center,
-                        startAngle: .degrees(sleepAngle - 90),
-                        endAngle: .degrees(wakeAngle - 90 + (wakeAngle < sleepAngle ? 360 : 0))
-                    ),
-                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .frame(width: size, height: size)
-            
-            // 3. Sleep Knob (Moon / Bed)
-            Knob(icon: "moon.fill", color: .indigo)
-                .offset(y: -size/2)
-                .rotationEffect(.degrees(sleepAngle))
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            change(location: value.location, isSleep: true)
-                        }
-                )
-            
-            // 4. Wake Knob (Sun / Alarm)
-            Knob(icon: "sun.max.fill", color: .orange)
-                .offset(y: -size/2)
-                .rotationEffect(.degrees(wakeAngle))
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            change(location: value.location, isSleep: false)
-                        }
-                )
-            
-            // 5. Center Info
-            VStack {
-                let duration = self.duration
-                Text(formatDuration(duration))
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Text("Duration")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-        }
-        .onAppear {
-            updateAnglesFromDates()
-        }
-        .onChange(of: sleepTime) { _, _ in updateAnglesFromDates() }
-        .onChange(of: wakeTime) { _, _ in updateAnglesFromDates() }
-    }
-    
-    // MARK: - Subviews
-    
-    func Knob(icon: String, color: Color) -> some View {
-        ZStack {
-            Circle()
-                .fill(Color.white)
-                .frame(width: 44, height: 44)
-                .shadow(radius: 4)
-            
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(color)
-        }
-    }
-    
-    // MARK: - Logic
-    
-    // Calculate fractions for the trim
-    // Trim expects 0.0 to 1.0 where 0 is 3 o'clock (0 degrees).
-    // Our angles: 0 is 12 o'clock.
-    // Wait, SwiftUI Circle() starts at 3 o'clock (0 rads).
-    // .rotationEffect(-90) makes 0 degrees at 12 o'clock.
-    // So if sleepAngle is 0 (12 o'clock), trim should be 0.
-    var startFraction: CGFloat {
-        return sleepAngle / 360.0
-    }
-    
-    var endFraction: CGFloat {
-        var end = wakeAngle / 360.0
-        if end < startFraction {
-            end += 1.0 // Wrap around
-        }
-        return end
-    }
-    
-    var duration: TimeInterval {
-        var diff = wakeAngle - sleepAngle
-        if diff < 0 { diff += 360 }
-        // 360 degrees = 24 hours = 86400 seconds
-        return (diff / 360.0) * 86400
-    }
-    
-    func formatDuration(_ interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        return "\(hours)h \(minutes)m"
-    }
-    
-    func updateAnglesFromDates() {
-        sleepAngle = angle(for: sleepTime)
-        wakeAngle = angle(for: wakeTime)
-    }
-    
-    // Convert Date to Angle (0-360, 0 at 12:00 AM/PM)
-    // Wait, let's use 24h cycle? 
-    // Apple Health sleep editor usually uses 24h cycle.
-    // 0 degrees = 00:00 (12 AM). 180 degrees = 12:00 (12 PM).
-    func angle(for date: Date) -> Double {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.hour, .minute], from: date)
-        let hour = Double(components.hour ?? 0)
-        let minute = Double(components.minute ?? 0)
-        
-        let totalMinutes = hour * 60 + minute
-        let totalMinutesInDay: Double = 24 * 60
-        
-        return (totalMinutes / totalMinutesInDay) * 360.0
-    }
-    
-    func change(location: CGPoint, isSleep: Bool) {
-        // Calculate vector from center
-        // Center of the view is (size/2, size/2) if local coords, but drag location is in local coords
-        // Actually drag gesture provides location relative to the view
-        
-        // This vector calculation is tricky in standard DragGesture inside ZStack elements
-        // Let's use GeometryReader or assume center is frame center
-        // It's easier if we interpret the angle from the center of the ZStack
-        
-        let vector = CGVector(dx: location.x, dy: location.y)
-        // This location is relative to the knob's original position which is rotated... this is messy.
-        // Better to use a DragGesture on blocking transparent view or calculate relative to center of circle
-        
-        // Let's simplify: Get angle from center of the circle to the touch point.
-        // We need a GeometryReader to know the center?
-        // Or assume center is 0,0 provided we translate coords.
-        
-        // Alternative: Use a transparent circle for gesture detection
-    }
-}
-
-// Rewriting for proper gesture handling
+// MARK: - Improved Circular Time Picker
 struct CircularTimePickerBetter: View {
     @Binding var sleepTime: Date
     @Binding var wakeTime: Date
-    var size: CGFloat = 280
-    
+    var size: CGFloat = 260
+
+    // Internal state for angles (0-360) where 0 is 12 o'clock
     @State private var sleepAngle: Double = 0
     @State private var wakeAngle: Double = 0
-    
+
+    // Gesture State
+    @State private var isDraggingSleep = false
+    @State private var isDraggingWake = false
+
+    // Haptics
+    private let impactLight = UIImpactFeedbackGenerator(style: .light)
+    private let impactMedium = UIImpactFeedbackGenerator(style: .medium)
+
     var body: some View {
         GeometryReader { proxy in
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-            
+
             ZStack {
-                 // Background
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 40)
-                    .frame(width: size, height: size)
-                
-                 // Labels (12, 6, 18, 24)
-                ForEach(0..<4) { i in
-                    VStack {
-                        Text("\(i * 6 == 0 ? 24 : i * 6)")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.gray)
+                // 1. Clock Face / Ticks
+                ClockFace(size: size)
+
+                // 2. Active Arc (The duration line)
+                // We use trim. 0 is 3 o'clock in SwiftUI.
+                // Our angles: 0 is 12 o'clock.
+                // SwiftUI Circle starts at 3 o'clock (Right). Rotating -90 brings start to 12 o'clock.
+                // Normalizing angles to 0-1 for trim.
+                Group {
+                    if endFraction > 1.0 {
+                        // Crosses midnight: Draw two arcs
+                        // Arc 1: Start to 1.0 (Midnight)
+                        Circle()
+                            .trim(from: sleepAngle / 360, to: 1.0)
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [Color.indigo, Color.purple, Color.orange]),
+                                    center: .center,
+                                    startAngle: .degrees(sleepAngle - 90),
+                                    endAngle: .degrees(wakeAngle - 90 + 360)
+                                ),
+                                style: StrokeStyle(lineWidth: 35, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+
+                        // Arc 2: 0.0 to End
+                        Circle()
+                            .trim(from: 0.0, to: endFraction - 1.0)
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [Color.indigo, Color.purple, Color.orange]),
+                                    center: .center,
+                                    startAngle: .degrees(sleepAngle - 90),
+                                    endAngle: .degrees(wakeAngle - 90 + 360)
+                                ),
+                                style: StrokeStyle(lineWidth: 35, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                    } else {
+                        // Normal case
+                        Circle()
+                            .trim(from: sleepAngle / 360, to: endFraction)
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [Color.indigo, Color.purple, Color.orange]),
+                                    center: .center,
+                                    startAngle: .degrees(sleepAngle - 90),
+                                    endAngle: .degrees(wakeAngle - 90)
+                                ),
+                                style: StrokeStyle(lineWidth: 35, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
                     }
-                    .offset(y: -(size/2 + 35))
-                    .rotationEffect(.degrees(Double(i) * 90))
                 }
-                
-                // Active Arc
-                Circle()
-                    .trim(from: sleepAngle/360, to: (wakeAngle < sleepAngle ? wakeAngle + 360 : wakeAngle)/360)
-                    .stroke(
-                        AngularGradient(
-                            gradient: Gradient(colors: [.indigo, .purple, .orange]),
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 40, lineCap: .round)
+                .frame(width: size, height: size)
+                // Add a shadow to the arc for depth
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+
+                // 3. Sleep Knob (Bed)
+                KnobView(icon: "bed.double.fill", color: .indigo)
+                    .position(
+                        x: center.x + (size/2) * sin(CGFloat.pi * 2 * sleepAngle / 360),
+                        y: center.y - (size/2) * cos(CGFloat.pi * 2 * sleepAngle / 360)
                     )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: size, height: size)
-                
-                // Sleep Knob
-                knob(icon: "bed.double.fill", color: .indigo, angle: sleepAngle)
-                    .gesture(
-                        DragGesture().onChanged { value in
-                            onDrag(value: value, center: center, isSleep: true)
-                        }
+                    // Hit testing needs to be large enough
+                    .scaleEffect(isDraggingSleep ? 1.2 : 1.0)
+                    .animation(.spring(response: 0.3), value: isDraggingSleep)
+
+                // 4. Wake Knob (Alarm)
+                KnobView(icon: "alarm.fill", color: .orange)
+                    .position(
+                        x: center.x + (size/2) * sin(CGFloat.pi * 2 * wakeAngle / 360),
+                        y: center.y - (size/2) * cos(CGFloat.pi * 2 * wakeAngle / 360)
                     )
-                
-                // Wake Knob
-                knob(icon: "alarm.fill", color: .orange, angle: wakeAngle)
-                    .gesture(
-                        DragGesture().onChanged { value in
-                            onDrag(value: value, center: center, isSleep: false)
-                        }
-                    )
-                
-                VStack {
+                    .scaleEffect(isDraggingWake ? 1.2 : 1.0)
+                    .animation(.spring(response: 0.3), value: isDraggingWake)
+
+                // 5. Center Info
+                VStack(spacing: 5) {
                     let diff = activeDuration
                     Text(formatDuration(diff))
-                        .font(.largeTitle)
-                        .bold()
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
                         .monospacedDigit()
+                        .foregroundColor(.primary)
+
                     Text("Time Asleep")
                         .font(.caption)
+                        .fontWeight(.medium)
                         .foregroundColor(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 6. Global Gesture Handler
+            // We put a transparent layer on top to catch all touches
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        handleDrag(value: value, center: center)
+                    }
+                    .onEnded { _ in
+                        isDraggingSleep = false
+                        isDraggingWake = false
+                        impactMedium.impactOccurred()
+                    }
+            )
             .onAppear {
                 setAnglesFromDates()
             }
+            .onChange(of: sleepTime) { _, _ in setAnglesFromDates() }
+            .onChange(of: wakeTime) { _, _ in setAnglesFromDates() }
         }
-        .frame(height: size + 80)
+        .frame(width: size + 60, height: size + 60) // Add padding for knobs
     }
-    
-    func knob(icon: String, color: Color, angle: Double) -> some View {
-        ZStack {
-            Circle()
-                .fill(Color(UIColor.systemBackground))
-                .shadow(radius: 2)
-                .frame(width: 48, height: 48)
-            Image(systemName: icon)
-                .foregroundColor(color)
+
+    // MARK: - Helpers
+
+    var endFraction: CGFloat {
+        let start = sleepAngle / 360
+        var end = wakeAngle / 360
+        if end < start { end += 1.0 }
+        return end
+    }
+
+    var activeDuration: TimeInterval {
+        var diff = wakeAngle - sleepAngle
+        if diff < 0 { diff += 360 }
+        return (diff / 360) * 86400 // 24 hours in seconds
+    }
+
+    func formatDuration(_ interval: TimeInterval) -> String {
+        let h = Int(interval) / 3600
+        let m = (Int(interval) % 3600) / 60
+        return "\(h)h \(m)m"
+    }
+
+    // MARK: - Subviews
+
+    struct ClockFace: View {
+        let size: CGFloat
+        var body: some View {
+            ZStack {
+                // Background Track
+                Circle()
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 35)
+                    .frame(width: size, height: size)
+
+                // Numbers
+                ForEach(0..<4) { i in
+                    VStack {
+                        Text("\(i * 6 == 0 ? 24 : i * 6)")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                    .offset(y: -(size/2 + 40))
+                    .rotationEffect(.degrees(Double(i) * 90))
+                }
+
+                // Little ticks between numbers?
+                ForEach(0..<24) { i in
+                   Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 2, height: i % 6 == 0 ? 0 : 8) // Skip main numbers
+                        .offset(y: -(size/2 + 25))
+                        .rotationEffect(.degrees(Double(i) * 15))
+                }
+            }
         }
-        .offset(y: -size/2)
-        .rotationEffect(.degrees(angle))
     }
-    
-    func setAnglesFromDates() {
-        sleepAngle = dateToAngle(sleepTime)
-        wakeAngle = dateToAngle(wakeTime)
+
+    struct KnobView: View {
+        let icon: String
+        let color: Color
+
+        var body: some View {
+            ZStack {
+                Circle()
+                    .fill(Color(UIColor.systemBackground))
+                    .frame(width: 48, height: 48)
+                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                    .font(.system(size: 20, weight: .bold))
+            }
+        }
     }
-    
+
+    // MARK: - Logic
+
     func dateToAngle(_ date: Date) -> Double {
         let cal = Calendar.current
         let comps = cal.dateComponents([.hour, .minute], from: date)
         let totalMins = Double(comps.hour ?? 0) * 60 + Double(comps.minute ?? 0)
         return (totalMins / (24 * 60)) * 360
     }
-    
-    func onDrag(value: DragGesture.Value, center: CGPoint, isSleep: Bool) {
-        // Calculate angle from center to touch
-        let vector = CGVector(dx: value.location.x - center.x, dy: value.location.y - center.y)
-        // atan2 returns angle in radians (-pi to pi). 0 is 3 o'clock (right).
-        // -pi/2 is 12 o'clock (top).
-        var angleRad = atan2(vector.dy, vector.dx)
-        
-        // Convert to degrees
-        var angleDeg = angleRad * 180 / .pi
-        
-        // Adjust coordinate system:
-        // atan2: Right=0, Down=90, Left=180, Top=-90
-        // We want: Top=0, Right=90, Down=180, Left=270
-        // Add 90 degrees?
-        // If 0 (Right, 3pm) -> +90 -> 90. Correct.
-        // If -90 (Top, 12am) -> +90 -> 0. Correct.
-        angleDeg += 90
-        
-        if angleDeg < 0 { angleDeg += 360 }
-        
-        // Updates
-        if isSleep {
-            sleepAngle = angleDeg
-            updateTime(isSleep: true, angle: angleDeg)
-        } else {
-            wakeAngle = angleDeg
-            updateTime(isSleep: false, angle: angleDeg)
-        }
+
+    func setAnglesFromDates() {
+        // Prevent feedback loop during dragging
+        if !isDraggingSleep { sleepAngle = dateToAngle(sleepTime) }
+        if !isDraggingWake { wakeAngle = dateToAngle(wakeTime) }
     }
-    
-    func updateTime(isSleep: Bool, angle: Double) {
-        // Convert angle (0-360) to time (0-24h)
-        let totalMinutes = (angle / 360) * (24 * 60)
-        let hours = Int(totalMinutes) / 60
-        let minutes = Int(totalMinutes) % 60
-        
-        // Snap to 5 minutes?
-        let snappedMinutes = (minutes / 5) * 5
-        
-        let cal = Calendar.current
-        var components = DateComponents()
-        components.hour = hours
-        components.minute = snappedMinutes
-        
-        // We need to keep the same Day, just change time
-        // Actually, for a single session we might need to handle day overflows?
-        // Let's assume we are just picking a time on *some* arbitrary day for now, 
-        // and the parent view handles date logic.
-        
-        if let newDate = cal.date(from: components) {
-            // Merge time into original date
-            let original = isSleep ? sleepTime : wakeTime
-            
-            // This is tricky. We need to preserve the Day of the original date, 
-            // but set h/m from newDate.
-            let fullComps = cal.dateComponents([.year, .month, .day], from: original)
-            var newFullComps = fullComps
-            newFullComps.hour = hours
-            newFullComps.minute = snappedMinutes
-            
-            if let finalDate = cal.date(from: newFullComps) {
-                if isSleep {
-                    sleepTime = finalDate
-                } else {
-                    wakeTime = finalDate
-                }
+
+    func handleDrag(value: DragGesture.Value, center: CGPoint) {
+        let vector = CGVector(dx: value.location.x - center.x, dy: value.location.y - center.y)
+        // atan2: Right=0, Down=90, Left=180, Top=-90.
+        // We convert to degrees and adjust so Top=0 (12 o'clock).
+        let angleRad = atan2(vector.dy, vector.dx)
+        var angleDeg = angleRad * 180 / .pi + 90
+        if angleDeg < 0 { angleDeg += 360 }
+
+        // Detect which knob to move on start of drag
+        // We use the startLocation to determine this only once per gesture ideally,
+        // but onChanged comes repeatedly. We check state flags.
+        if !isDraggingSleep && !isDraggingWake {
+            // Determine distance to current knobs angles
+            let sleepDist = abs(angleDifference(angle1: angleDeg, angle2: sleepAngle))
+            let wakeDist = abs(angleDifference(angle1: angleDeg, angle2: wakeAngle))
+
+            // Threshold for grabbing (e.g., 30 degrees arc)
+            let threshold: Double = 30
+
+            if sleepDist < threshold && sleepDist < wakeDist {
+                isDraggingSleep = true
+                impactLight.impactOccurred()
+            } else if wakeDist < threshold {
+                isDraggingWake = true
+                impactLight.impactOccurred()
+            } else {
+                // Maybe dragging the arc itself? Complex implementation.
+                // Let's stick to knobs for now for robustness.
+                return
+            }
+        }
+
+        // Apply update
+        // Snap to 5 minutes (360 degrees / 24h / 12 = 30 degrees per hour / 12 = 2.5 degrees per 10 min?)
+        // 24h = 1440m. 360 deg. 1m = 0.25 deg. 5m = 1.25 deg.
+        // Let's snap to closest 1.25 degrees
+        let snapInterval = 1.25 * 3 // 15 minutes snap for distinct feel? Or 5?
+        // Let's go with 5 mins = 1.25 deg
+        let snapDeg = 1.25
+
+        let snappedAngle = round(angleDeg / snapDeg) * snapDeg
+
+        if isDraggingSleep {
+            if snappedAngle != sleepAngle {
+                sleepAngle = snappedAngle
+                updateTime(isSleep: true, angle: snappedAngle)
+                // Haptic on change
+                impactLight.impactOccurred()
+            }
+        } else if isDraggingWake {
+            if snappedAngle != wakeAngle {
+                wakeAngle = snappedAngle
+                updateTime(isSleep: false, angle: snappedAngle)
+                impactLight.impactOccurred()
             }
         }
     }
-    
-    var activeDuration: TimeInterval {
-        var diff = wakeAngle - sleepAngle
-        if diff < 0 { diff += 360 }
-        return (diff / 360) * 86400
+
+    func angleDifference(angle1: Double, angle2: Double) -> Double {
+        var diff = angle1 - angle2
+        if diff > 180 { diff -= 360 }
+        if diff < -180 { diff += 360 }
+        return diff
     }
-    
-    func formatDuration(_ interval: TimeInterval) -> String {
-        let h = Int(interval) / 3600
-        let m = (Int(interval) % 3600) / 60
-        return "\(h)hr \(m)min"
+
+    func updateTime(isSleep: Bool, angle: Double) {
+        let totalMinutes = (angle / 360) * (24 * 60)
+        let hours = Int(totalMinutes) / 60
+        let minutes = Int(totalMinutes) % 60
+
+        // Construct new date preserving day
+        let cal = Calendar.current
+        var comps = DateComponents()
+        comps.hour = hours
+        comps.minute = minutes
+
+        // Base Date
+        let baseDate = isSleep ? sleepTime : wakeTime
+        let fullComps = cal.dateComponents([.year, .month, .day], from: baseDate)
+
+        var newFullComps = fullComps
+        newFullComps.hour = hours
+        newFullComps.minute = minutes
+
+        if let newDate = cal.date(from: newFullComps) {
+            if isSleep {
+                sleepTime = newDate
+            } else {
+                wakeTime = newDate
+            }
+        }
     }
 }
